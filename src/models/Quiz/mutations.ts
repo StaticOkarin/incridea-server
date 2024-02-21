@@ -16,6 +16,7 @@ builder.mutationField("createQuiz", (t) =>
       startTime: t.arg({ type: "String", required: true }),
       password: t.arg({ type: "String", required: true }),
       endTime: t.arg({ type: "String", required: true }),
+      duration: t.arg({ type: "Int", required: true }),
     },
     errors: {
       types: [Error],
@@ -38,6 +39,7 @@ builder.mutationField("createQuiz", (t) =>
           startTime: new Date(args.startTime),
           endTime: new Date(args.endTime),
           password: args.password,
+          duration: args.duration,
           Round: {
             connect: {
               eventId_roundNo: {
@@ -84,7 +86,7 @@ builder.mutationField("createQuiz", (t) =>
       });
       return data;
     },
-  }),
+  })
 );
 
 builder.mutationField("updateQuizStatus", (t) =>
@@ -130,7 +132,7 @@ builder.mutationField("updateQuizStatus", (t) =>
       }
       return data;
     },
-  }),
+  })
 );
 
 //delete the quiz
@@ -159,6 +161,44 @@ builder.mutationField("deleteQuiz", (t) =>
         },
         ...query,
       });
+      return data;
+    },
+  })
+);
+
+builder.mutationField("submitQuiz", (t) =>
+  t.prismaField({
+    type: "QuizSubmissions",
+    args: {
+      quizId: t.arg({ type: "String", required: true }),
+      teamId: t.arg({ type: "String", required: true }),
+    },
+    errors: {
+      types: [Error],
+    },
+    resolve: async (query, root, args, ctx, info) => {
+      const user = await ctx.user;
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
+
+      if (user.role !== "ORGANIZER")
+        throw new Error("Not allowed to perform this action");
+
+      const data = await ctx.prisma.quizSubmissions.create({
+          data: {
+            Quiz: {
+              connect: { 
+                id: args.quizId 
+              }
+            },
+            Team: {
+              connect: {
+                id: Number(args.teamId) 
+              }
+            },
+          }, 
+        });
       return data;
     },
   }),
@@ -196,7 +236,7 @@ builder.mutationField("updateQuizDuration", (t) =>
       });
       return data;
     },
-  }),
+  })
 );
 
 builder.mutationField("addTime", (t) =>
@@ -232,7 +272,7 @@ builder.mutationField("addTime", (t) =>
       }
       return new QuizTimerClass(false, -1, "Error");
     },
-  }),
+  })
 );
 
 builder.mutationField("pauseOrResumeQuiz", (t) =>
@@ -268,11 +308,11 @@ builder.mutationField("pauseOrResumeQuiz", (t) =>
           });
         pubsub.publish(
           `QUIZ_TIME_UPDATE/${args.eventId}`,
-          QuizTimer.get(quiz?.id),
+          QuizTimer.get(quiz?.id)
         );
         return new QuizTimerClass(data?.started, data?.remainingTime, "Ok");
       }
       return new QuizTimerClass(false, -1, "Error");
     },
-  }),
+  })
 );
